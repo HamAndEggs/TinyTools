@@ -180,10 +180,10 @@ inline std::string GetLocalIP()
 /**
  * @brief Get Host Name, handy little wrapper.
  */
-std::string GetHostName()
+inline std::string GetHostName()
 {
     char buf[256];
-    gethostname(buf,256);
+    ::gethostname(buf,256);
 	return std::string(buf);
 }
 
