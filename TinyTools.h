@@ -493,7 +493,6 @@ inline bool GetCPULoad(std::map<int,CPULoadTracking>& pTrackingData,int& rTotalS
 				}
 			}
 		}
-		std::cout << "\n";
 		return true;
 	}
 	return false;
