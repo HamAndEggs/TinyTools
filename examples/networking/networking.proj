@@ -1,0 +1,30 @@
+{
+    "source_files":
+    [
+        "networking.cpp",
+        "../../TinyTools.cpp"
+    ],
+    "configurations":
+    {
+        "release":
+        {
+            "default": false,
+            "include":
+            [
+                "/usr/include/",
+                "./",
+                "../../"
+            ]
+        },
+        "debug":
+        {
+            "default": true,
+            "include":
+            [
+                "/usr/include/",
+                "./",
+                "../../"
+            ]
+        }
+   }
+}
