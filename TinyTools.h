@@ -153,6 +153,14 @@ std::string GetLocalIP();
  * @brief Get Host Name, handy little wrapper.
  */
 std::string GetHostName();
+
+/**
+ * @brief Get the host name from the IP address
+ * 
+ */
+std::string GetNameFromIPv4(const std::string& pAddress);
+
+
 };// namespace network
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////

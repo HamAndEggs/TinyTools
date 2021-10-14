@@ -3,6 +3,7 @@
 
 #include "TinyTools.h"
 
+
 int main(int argc, char *argv[])
 {
 // Say hello to the world!
@@ -15,6 +16,16 @@ int main(int argc, char *argv[])
     std::cout << "Build time " << APP_BUILD_TIME << '\n';
 
     std::cout << "IP: " << tinytools::network::GetLocalIP() << " Hostname: " << tinytools::network::GetHostName() << "\n";
+
+    for( int n = 1 ; n < 256 ; n++ )
+    {
+        const std::string ip = "192.168.1." + std::to_string(n);
+        const std::string name = tinytools::network::GetNameFromIPv4(ip);
+        if( name.size() > 0 )
+        {
+            std::cout << name << "\n";
+        }
+    }
 
 // And quit\n";
     return EXIT_SUCCESS;

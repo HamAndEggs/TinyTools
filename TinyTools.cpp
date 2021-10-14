@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <time.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -194,6 +195,31 @@ std::string GetHostName()
     ::gethostname(buf,256);
 	return std::string(buf);
 }
+
+std::string GetNameFromIPv4(const std::string& pAddress)
+{
+    sockaddr_in deviceIP;
+	memset(&deviceIP, 0, sizeof deviceIP);
+
+	const int ret = inet_pton(AF_INET,pAddress.c_str(),&deviceIP.sin_addr);
+	 if (ret <= 0)
+	 {
+		if (ret == 0)
+			return "Not in presentation format";
+		return "inet_pton failed";
+	}
+
+	deviceIP.sin_family = AF_INET;
+
+	char hbuf[NI_MAXHOST];
+	hbuf[0] = 0;
+
+
+	getnameinfo((struct sockaddr*)&deviceIP,sizeof(deviceIP),hbuf, sizeof(hbuf), NULL,0, NI_NAMEREQD);
+	const std::string name = hbuf;
+	return name;
+}
+
 };// namespace network
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
