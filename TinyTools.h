@@ -156,10 +156,49 @@ std::string GetHostName();
 
 /**
  * @brief Get the host name from the IP address
- * 
+ * e.g. const std::string name = GetNameFromIPv4("192.168.1.100");
  */
 std::string GetNameFromIPv4(const std::string& pAddress);
 
+/**
+ * @brief Get the host name from the IP address
+ * e.g. const std::string name = GetNameFromIPv4(MakeIP4V(192,168,1,100));
+ */
+std::string GetNameFromIPv4(const uint32_t pAddress);
+
+/**
+ * @brief Scans from PI range to PI range. Broadcast IP's ignored.
+ * 
+ * @param pFromIPRange 
+ * @param pToIPRange 
+ */
+void ScanNetworkIPv4(uint32_t pFromIPRange,uint32_t pToIPRange,std::function<bool(const uint32_t pIPv4,const char* pHostName)> pDeviceFound);
+
+/**
+ * @brief Creates an 32 bit value from the passed IPv4 address.
+ * https://www.sciencedirect.com/topics/computer-science/network-byte-order
+ */
+inline uint32_t MakeIP4V(uint8_t pA,uint8_t pB,uint8_t pC,uint8_t pD)
+{
+	// Networking byte order is big endian, so most significan't byte is byte 0.
+	return (uint32_t)((pA << 0) | (pB << 8) | (pC << 16) | pD << 24);
+}
+
+/**
+ * @brief Makes a string, IE 192.168.1.1 from the passed in IPv4 value.
+ * 
+ * @param pIPv4 In big endian format https://www.sciencedirect.com/topics/computer-science/network-byte-order
+ * @return std::string 
+ */
+inline std::string IPv4ToString(uint32_t pIPv4)
+{
+	int a = (pIPv4&0x000000ff)>>0;
+	int b = (pIPv4&0x0000ff00)>>8;
+	int c = (pIPv4&0x00ff0000)>>16;
+	int d = (pIPv4&0xff000000)>>24;
+
+	return std::to_string(a) + "." + std::to_string(b) + "." + std::to_string(c) + "." + std::to_string(d);
+}
 
 };// namespace network
 

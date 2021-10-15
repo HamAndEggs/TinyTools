@@ -220,6 +220,69 @@ std::string GetNameFromIPv4(const std::string& pAddress)
 	return name;
 }
 
+std::string GetNameFromIPv4(const uint32_t pAddress)
+{
+    sockaddr_in deviceIP;
+	memset(&deviceIP, 0, sizeof deviceIP);
+
+	deviceIP.sin_addr.s_addr = pAddress;
+	deviceIP.sin_family = AF_INET;
+
+	char hbuf[NI_MAXHOST];
+	hbuf[0] = 0;
+
+	getnameinfo((struct sockaddr*)&deviceIP,sizeof(deviceIP),hbuf, sizeof(hbuf), NULL,0, NI_NAMEREQD);
+	const std::string name = hbuf;
+	return name;
+}
+
+void ScanNetworkIPv4(uint32_t pFromIPRange,uint32_t pToIPRange,std::function<bool(const uint32_t pIPv4,const char* pHostName)> pDeviceFound)
+{
+	// Because IP values are in big endian format I need disassemble to iterate over them.
+	const int aFrom = (pFromIPRange&0x000000ff)>>0;
+	const int bFrom = (pFromIPRange&0x0000ff00)>>8;
+	const int cFrom = (pFromIPRange&0x00ff0000)>>16;
+	const int dFrom = std::clamp(int((pFromIPRange&0xff000000)>>24),1,254);
+
+	const int aTo = (pToIPRange&0x000000ff)>>0;
+	const int bTo = (pToIPRange&0x0000ff00)>>8;
+	const int cTo = (pToIPRange&0x00ff0000)>>16;
+	const int dTo = std::clamp(int((pToIPRange&0xff000000)>>24),1,254);
+
+	std::cout << "From " << aFrom << "." << bFrom << "." << cFrom << "." << dFrom << "\n";
+	std::cout << "To " << aTo << "." << bTo << "." << cTo << "." << dTo << "\n";
+
+	for( int a = aFrom ; a <= aTo ; a++ )
+	{
+		for( int b = bFrom ; b <= bTo ; b++ )
+		{
+			for( int c = cFrom ; c <= cTo ; c++ )
+			{
+				for( int d = dFrom ; d <= dTo ; d++ )
+				{
+					sockaddr_in deviceIP;
+					memset(&deviceIP, 0, sizeof deviceIP);
+
+					deviceIP.sin_addr.s_addr = MakeIP4V(a,b,c,d);
+					deviceIP.sin_family = AF_INET;
+
+					char hbuf[NI_MAXHOST];
+					hbuf[0] = 0;
+
+					if( getnameinfo((struct sockaddr*)&deviceIP,sizeof(deviceIP),hbuf, sizeof(hbuf), NULL,0, NI_NAMEREQD) == 0 )
+					{
+						if( pDeviceFound(deviceIP.sin_addr.s_addr,hbuf) == false )
+						{
+							return;// User asked to end.
+						}
+					}
+				}
+			}
+		}
+	}
+
+}
+
 };// namespace network
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////

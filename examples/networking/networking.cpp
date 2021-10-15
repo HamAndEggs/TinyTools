@@ -3,6 +3,7 @@
 
 #include "TinyTools.h"
 
+using namespace tinytools::network;
 
 int main(int argc, char *argv[])
 {
@@ -15,17 +16,13 @@ int main(int argc, char *argv[])
     std::cout << "Build date " << APP_BUILD_DATE << '\n';
     std::cout << "Build time " << APP_BUILD_TIME << '\n';
 
-    std::cout << "IP: " << tinytools::network::GetLocalIP() << " Hostname: " << tinytools::network::GetHostName() << "\n";
+    std::cout << "IP: " << GetLocalIP() << " Hostname: " << GetHostName() << "\n";
 
-    for( int n = 1 ; n < 256 ; n++ )
+    ScanNetworkIPv4(MakeIP4V(192,168,1,1),MakeIP4V(192,168,1,255),[](const uint32_t pIPv4,const char* pHostName)
     {
-        const std::string ip = "192.168.1." + std::to_string(n);
-        const std::string name = tinytools::network::GetNameFromIPv4(ip);
-        if( name.size() > 0 )
-        {
-            std::cout << name << "\n";
-        }
-    }
+        std::cout << IPv4ToString(pIPv4) << " == " << pHostName << "\n";
+        return true;
+    });
 
 // And quit\n";
     return EXIT_SUCCESS;
