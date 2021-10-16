@@ -236,6 +236,36 @@ std::string GetNameFromIPv4(const uint32_t pAddress)
 	return name;
 }
 
+uint32_t GetIPv4FromName(const std::string& pHostName)
+{
+	struct addrinfo hints;
+    struct addrinfo *result;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;    // only IPv4 please
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_flags = 0;
+	hints.ai_protocol = 0;
+
+	uint32_t IPv4 = 0;
+
+	if( getaddrinfo(pHostName.c_str(),NULL,&hints,&result) == 0 )
+	{
+		for( struct addrinfo *rp = result; rp != NULL && IPv4 == 0 ; rp = rp->ai_next)
+		{
+			if( rp->ai_addr->sa_family == AF_INET )
+			{
+				IPv4 = ((const sockaddr_in*)rp->ai_addr)->sin_addr.s_addr;
+			}
+		}
+
+		// Clean up
+		freeaddrinfo(result);
+	}
+
+	return IPv4;
+}
+
 void ScanNetworkIPv4(uint32_t pFromIPRange,uint32_t pToIPRange,std::function<bool(const uint32_t pIPv4,const char* pHostName)> pDeviceFound)
 {
 	// Because IP values are in big endian format I need disassemble to iterate over them.
@@ -280,7 +310,27 @@ void ScanNetworkIPv4(uint32_t pFromIPRange,uint32_t pToIPRange,std::function<boo
 			}
 		}
 	}
+}
 
+bool IsPortOpen(uint32_t pIPv4,uint16_t pPort)
+{
+	int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+    if (sockfd < 0)
+	{
+		TINYTOOLS_THROW("ERROR opening socket");
+		return false;
+	}
+
+    sockaddr_in deviceAddress;
+	memset(&deviceAddress, 0, sizeof(deviceAddress));
+
+	deviceAddress.sin_addr.s_addr = pIPv4;
+	deviceAddress.sin_port = htons(pPort);
+	deviceAddress.sin_family = AF_INET;
+
+	const bool isOpen = connect(sockfd,(struct sockaddr *) &deviceAddress,sizeof(deviceAddress)) == 0;
+	close(sockfd);
+	return isOpen;
 }
 
 };// namespace network

@@ -167,12 +167,20 @@ std::string GetNameFromIPv4(const std::string& pAddress);
 std::string GetNameFromIPv4(const uint32_t pAddress);
 
 /**
+ * @brief If the device with the host name has a IPv4 address returns that address.
+ */
+uint32_t GetIPv4FromName(const std::string& pHostName);
+
+/**
  * @brief Scans from PI range to PI range. Broadcast IP's ignored.
- * 
- * @param pFromIPRange 
- * @param pToIPRange 
+ * Will return some intresting information handy for network monitoring.
  */
 void ScanNetworkIPv4(uint32_t pFromIPRange,uint32_t pToIPRange,std::function<bool(const uint32_t pIPv4,const char* pHostName)> pDeviceFound);
+
+/**
+ * @brief Checks that the port on the device at IPv4 can be opened.
+ */
+bool IsPortOpen(uint32_t pIPv4,uint16_t pPort);
 
 /**
  * @brief Creates an 32 bit value from the passed IPv4 address.
