@@ -1,5 +1,9 @@
 /*
-   Copyright (C) 2017, Richard e Collins.
+ * @file TinyTools.h
+ * @author Richard e Collins
+ * @version 0.1
+ * @date 2021-03-15
+
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,7 +26,11 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <poll.h>
 
 #include <vector>
 #include <string>
@@ -32,6 +40,7 @@
 #include <cstring>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <chrono>
 #include <thread>
 #include <condition_variable>
@@ -53,20 +62,6 @@ namespace math
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace string{
-
-std::vector<std::string> SplitString(const std::string& pString, const char* pSeperator)
-{
-	std::vector<std::string> res;
-	for (size_t p = 0, q = 0; p != pString.npos; p = q)
-	{
-		const std::string part(pString.substr(p + (p != 0), (q = pString.find(pSeperator, p + 1)) - p - (p != 0)));
-		if( part.size() > 0 )
-		{
-			res.push_back(part);
-		}
-	}
-	return res;
-}
 
 bool CompareNoCase(const char* pA,const char* pB,size_t pLength)
 {
@@ -102,6 +97,60 @@ bool CompareNoCase(const char* pA,const char* pB,size_t pLength)
 
     // Get here, they are the same.
     return true;
+}
+
+
+char* CopyString(const char* pString, size_t pMaxLength)
+{
+    char *newString = nullptr;
+    if( pString != nullptr && pString[0] != 0 )
+    {
+        size_t len = strnlen(pString,pMaxLength);
+        if( len > 0 )
+        {
+            newString = new char[len + 1];
+            strncpy(newString,pString,len);
+            newString[len] = 0;
+        }
+    }
+
+    return newString;
+}
+
+StringVec SplitString(const std::string& pString, const char* pSeperator)
+{
+    StringVec res;
+    for (size_t p = 0, q = 0; p != pString.npos; p = q)
+        res.push_back(pString.substr(p + (p != 0), (q = pString.find(pSeperator, p + 1)) - p - (p != 0)));
+    return res;
+}
+
+std::string ReplaceString(const std::string& pString,const std::string& pSearch,const std::string& pReplace)
+{
+    std::string Result = pString;
+    // Make sure we can't get stuck in an infinite loop if replace includes the search string or both are the same.
+    if( pSearch != pReplace && pSearch.find(pReplace) != pSearch.npos )
+    {
+        for( std::size_t found = Result.find(pSearch) ; found != Result.npos ; found = Result.find(pSearch) )
+        {
+            Result.erase(found,pSearch.length());
+            Result.insert(found,pReplace);
+        }
+    }
+    return Result;
+}
+
+std::string TrimWhiteSpace(const std::string &s)
+{
+    std::string::const_iterator it = s.begin();
+    while (it != s.end() && isspace(*it))
+        it++;
+
+    std::string::const_reverse_iterator rit = s.rbegin();
+    while (rit.base() != it && isspace(*rit))
+        rit++;
+
+    return std::string(it, rit.base());
 }
 
 };//namespace string{
@@ -593,6 +642,193 @@ bool GetMemoryUsage(size_t& rMemoryUsedKB,size_t& rMemAvailableKB,size_t& rMemTo
 	return false;
 }
 
+static char* CopyArg(const std::string& pString)
+{
+    char *newString = nullptr;
+    const size_t len = pString.length();
+    if( len > 0 )
+    {
+        newString = new char[len + 1];
+        for( size_t n = 0 ; n < len ; n++ )
+            newString[n] = pString.at(n);
+        newString[len] = 0;
+    }
+
+    return newString;
+}
+
+static void BuildArgArray(char** pTheArgs, const std::vector<std::string>& pArgs)
+{    
+    for (const std::string& Arg : pArgs)
+    {
+        char* str = CopyArg(Arg);
+        if(str)
+        {
+            //Trim leading white space.
+            while(isspace(str[0]) && str[0])
+                str++;
+
+            if(str[0])
+            {
+                *pTheArgs = str;
+                pTheArgs++;
+            }
+        }
+    }
+    *pTheArgs = nullptr;
+}
+
+bool ExecuteShellCommand(const std::string& pCommand,const std::vector<std::string>& pArgs,const std::map<std::string,std::string>& pEnv, std::string& rOutput)
+{
+    const bool VERBOSE = false;
+    if (pCommand.size() == 0 )
+    {
+        std::cerr << "ExecuteShellCommand Command name for was zero length! No command given!\n";
+        return false;
+    }
+
+    int pipeSTDOUT[2];
+    int result = pipe(pipeSTDOUT);
+    if (result < 0)
+    {
+        perror("pipe");
+        exit(-1);
+    }
+
+    int pipeSTDERR[2];
+    result = pipe(pipeSTDERR);
+    if (result < 0)
+    {
+        perror("pipe");
+        exit(-1);
+    }
+
+    /* print error message if fork() fails */
+    pid_t pid = fork();
+    if (pid < 0)
+    {
+        std::cout << "ExecuteShellCommand Fork failed" << std::endl;
+        return false;
+    }
+
+    /* fork() == 0 for child process */
+    if (pid == 0)
+    {
+        dup2(pipeSTDOUT[1], STDOUT_FILENO ); /* Duplicate writing end to stdout */
+        close(pipeSTDOUT[0]);
+        close(pipeSTDOUT[1]);
+
+        dup2(pipeSTDERR[1], STDERR_FILENO ); /* Duplicate writing end to stdout */
+        close(pipeSTDERR[0]);
+        close(pipeSTDERR[1]);
+
+        ExecuteCommand(pCommand,pArgs,pEnv);
+    }
+
+    /*
+     * parent process
+     */
+
+    /* Parent process */
+    close(pipeSTDOUT[1]); /* Close writing end of pipes, don't need them */
+    close(pipeSTDERR[1]); /* Close writing end of pipes, don't need them */
+
+    size_t BufSize = 1000;
+    char buf[BufSize+1];
+    buf[BufSize] = 0;
+
+    struct pollfd Pipes[] =
+    {
+        {pipeSTDOUT[0],POLLIN,0},
+        {pipeSTDERR[0],POLLIN,0},
+    };
+
+    int NumPipesOk = 2;
+    std::stringstream outputStream;
+    do
+    {
+        int ret = poll(Pipes,2,1000);
+        if( ret < 0 )
+        {
+            rOutput = "Error, pipes failed. Can't capture process output";
+            NumPipesOk = 0;
+        }
+        else if(ret  > 0 )
+        {
+            for(int n = 0 ; n < 2 ; n++ )
+            {
+                if( (Pipes[n].revents&POLLIN) != 0 )
+                {
+                    ssize_t num = read(Pipes[n].fd,buf,BufSize);
+                    if( num > 0 )
+                    {
+                        buf[num] = 0;
+                        outputStream << buf;
+                    }
+                }
+                else if( (Pipes[n].revents&(POLLERR|POLLHUP|POLLNVAL)) != 0 && Pipes[n].events != 0 )
+                {
+                    Pipes[n].fd = -1;
+                    NumPipesOk--;
+                }
+            }
+        }
+    }while(NumPipesOk>0);
+    rOutput = outputStream.str();
+
+    int status;
+    bool Worked = false;
+    if( wait(&status) == -1 )
+    {
+        std::cout << "Failed to wait for child process." << std::endl;
+    }
+    else
+    {
+        if(WIFEXITED(status) && WEXITSTATUS(status) != 0)//did the child terminate normally?
+        {
+            if( VERBOSE )
+                std::cout << (long)pid << " exited with return code " << WEXITSTATUS(status) << std::endl;
+        }
+        else if (WIFSIGNALED(status))// was the child terminated by a signal?
+        {
+            if( VERBOSE )
+                std::cout << (long)pid << " terminated because it didn't catch signal number " << WTERMSIG(status) << std::endl;
+        }
+        else
+        {// Get here, then all is ok.
+            Worked = true;
+        }
+    }
+
+    return Worked;
+}
+
+void ExecuteCommand(const std::string& pCommand,const std::vector<std::string>& pArgs,const std::map<std::string,std::string>& pEnv)
+{
+    // +1 for the NULL and +1 for the file name as per convention, see https://linux.die.net/man/3/execlp.
+    char** TheArgs = new char*[pArgs.size() + 2];
+    TheArgs[0] = CopyArg(pCommand);
+    BuildArgArray(TheArgs+1,pArgs);
+
+    // Build the environment variables.
+    for( const auto& var : pEnv )
+    {
+        setenv(var.first.c_str(),var.second.c_str(),1);
+    }
+
+    // This replaces the current process so no need to clean up the memory leaks before here. ;)
+    execvp(TheArgs[0], TheArgs);
+
+    const char* errorString = strerror(errno);
+
+    std::cerr << "ExecuteCommand execvp() failure!\n" << "    Error: " << errorString << "\n    This print is after execvp() and should not have been executed if execvp were successful!\n";
+
+    // Should never get here!
+    throw std::runtime_error("Command execution failed! Should not have returned! " + pCommand + " Error: " + errorString);
+    // Really make sure the process is gone...
+    _exit(1);
+}
+
 };//namespace system{
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace threading{
@@ -771,6 +1007,298 @@ void CommandLineOptions::PrintHelp()const
 	}
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace file{
+bool FileExists(const char* pFileName)
+{
+    struct stat file_info;
+    return stat(pFileName, &file_info) == 0 && S_ISREG(file_info.st_mode);
+}
+
+bool DirectoryExists(const char* pDirname)
+{
+// Had and issue where a path had an odd char at the end of it. So do this to make sure it's clean.
+	const std::string clean(string::TrimWhiteSpace(pDirname));
+
+    struct stat dir_info;
+    if( stat(clean.c_str(), &dir_info) == 0 )
+    {
+        return S_ISDIR(dir_info.st_mode);
+    }
+    return false;
+}
+
+bool MakeDir(const std::string& pPath)
+{
+    StringVec folders = string::SplitString(pPath,"/");
+
+    std::string CurrentPath;
+    const char* seperator = "";
+    for(const std::string& path : folders )
+    {
+        CurrentPath += seperator;
+        CurrentPath += path;
+        seperator = "/";
+        if(DirectoryExists(CurrentPath) == false)
+        {
+            if( mkdir(CurrentPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0 )
+            {
+                std::cout << "Making folders failed for " << pPath << std::endl;
+                std::cout << "Failed AT " << path << std::endl;
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool MakeDirForFile(const std::string& pPathedFilename)
+{
+    std::string path = pPathedFilename;
+
+    if( GetIsPathAbsolute(pPathedFilename) )
+    {
+        path = GetRelativePath(GetCurrentWorkingDirectory(),path);
+    }
+
+    path = GetPath(path);
+
+    return MakeDir(path);
+}
+
+std::string GetFileName(const std::string& pPathedFileName,bool RemoveExtension/* = false*/)
+{
+    std::string result = pPathedFileName;
+    // If / is the last char then it is just a path, so do nothing.
+    if(result.back() != '/' )
+    {
+            // String after the last / char is the file name.
+        std::size_t found = result.rfind("/");
+        if(found != std::string::npos)
+        {
+            result = result.substr(found+1);
+        }
+
+        if( RemoveExtension )
+        {
+            found = result.rfind(".");
+            if(found != std::string::npos)
+            {
+                result = result.substr(0,found);
+            }
+        }
+    }
+
+    // Not found, and so is just the file name.
+    return result;
+}
+
+std::string GetPath(const std::string& pPathedFileName)
+{
+    // String after the last / char is the file name.
+    std::size_t found = pPathedFileName.find_last_of("/");
+    if(found != std::string::npos)
+    {
+        std::string result = pPathedFileName.substr(0,found);
+        result += '/';
+        return CleanPath(result);
+    }
+    return "./";
+}
+
+std::string GetCurrentWorkingDirectory()
+{
+    char buf[PATH_MAX];
+    std::string path = getcwd(buf,PATH_MAX);
+    return path;
+}
+
+std::string CleanPath(const std::string& pPath)
+{
+    // Early out for daft calls... but valid.
+    if( pPath == "./" || pPath == "." || pPath == "../" )
+    {
+        return pPath;
+    }
+
+    // First get rid of the easy stuff.
+    return string::ReplaceString(string::ReplaceString(pPath,"/./","/"),"//","/");
+}
+
+std::string GuessOutputName(const std::string& pProjectName)
+{
+    if( pProjectName.size() > 0 )
+    {
+        // Lets see if assuming its a path to a file will give us something.
+        std::string aGuess = GetFileName(pProjectName,true);
+        if( aGuess.size() > 0 )
+            return aGuess;
+
+        // That was unexpected. So lets just removed all characters I don't like and see what we get.
+        // At the end of the day if the user does not like it they can set it in the project file.
+        // This code is here to allow for minimal project files.
+        aGuess.reserve(pProjectName.size());
+        for( auto c : pProjectName )
+        {
+            if( std::isalnum(c) )
+                aGuess += c;
+        }
+
+        // What about that?
+        if( aGuess.size() > 0 )
+            return aGuess;
+
+    }
+    // We have nothing, so lets just use this.
+    return "binary";
+}
+
+std::string GetExtension(const std::string& pFileName,bool pToLower)
+{
+    std::string result;
+    std::size_t found = pFileName.rfind(".");
+    if(found != std::string::npos)
+    {
+        result = pFileName.substr(found,pFileName.size()-found);
+        if( pToLower )
+            std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+
+        // Remove leading .
+        if( result.at(0) == '.' )
+            result = result.erase(0,1);
+    }
+
+    return result;
+}
+
+static bool FilterMatch(const std::string& pFilename,const std::string& pFilter)
+{
+    size_t wildcardpos=pFilter.find("*");
+    if( wildcardpos != std::string::npos )
+    {
+        if( wildcardpos > 0 )
+        {
+            wildcardpos = pFilename.find(pFilter.substr(0,wildcardpos));
+            if( wildcardpos == std::string::npos )
+                return false;
+        }
+        return pFilename.find(pFilter.substr(wildcardpos+1)) != std::string::npos;
+    }
+    return pFilename.find(pFilter) != std::string::npos;
+}
+
+StringVec FindFiles(const std::string& pPath,const std::string& pFilter)
+{
+    StringVec FoundFiles;
+
+    DIR *dir = opendir(pPath.c_str());
+    if(dir)
+    {
+        struct dirent *ent;
+        while((ent = readdir(dir)) != nullptr)
+        {
+            const std::string fname = ent->d_name;
+            if( FilterMatch(fname,pFilter) )
+                FoundFiles.push_back(fname);
+        }
+        closedir(dir);
+    }
+    else
+    {
+        std::cout << "FindFiles \'" << pPath << "\' was not found or is not a path." << std::endl;
+    }
+
+    return FoundFiles;
+}
+
+std::string GetRelativePath(const std::string& pCWD,const std::string& pFullPath)
+{
+    assert( pCWD.size() > 0 );
+    assert( pFullPath.size() > 0 );
+    assert( GetIsPathAbsolute(pCWD) );
+    assert( GetIsPathAbsolute(pFullPath) );
+
+    const std::string cwd = CleanPath(pCWD);
+    const std::string fullPath = CleanPath(pFullPath);
+
+    assert( GetIsPathAbsolute(cwd) );
+    assert( GetIsPathAbsolute(fullPath) );
+
+    if( cwd.size() == 0 )
+        return "./";
+
+    if( fullPath.size() == 0 )
+        return "./";
+
+    if( cwd.at(0) != '/' )
+        return fullPath;
+
+    if( fullPath.at(0) != '/' )
+        return fullPath;
+
+    // Now do the real work.
+    // First substitute the parts of CWD that match FULL path. Starting at the start of CWD.
+    const StringVec cwdFolders = string::SplitString(cwd,"/");
+    const StringVec fullPathFolders = string::SplitString(fullPath,"/");
+
+    const size_t count = std::min(cwdFolders.size(),fullPathFolders.size()); 
+
+    size_t posOfFirstDifference = 0;
+    for( size_t n = 0 ; n < count && string::CompareNoCase(cwdFolders[n].c_str(),fullPathFolders[n].c_str()) ; n++ )
+    {
+        posOfFirstDifference++;
+    }
+
+    // Now to start building the path.
+    // For every dir left in CWD add a ../
+    std::string relativePath = "";
+    for( size_t n = posOfFirstDifference ; n < cwdFolders.size() ; n++ )
+    {
+        relativePath += "../";
+    }
+
+    // Now add the rest of the full path passed in.
+    // If relativePath is still zero length, add a ./ to it.
+    if( relativePath.size() == 0 )
+    {
+        relativePath += "./";
+    }
+
+    for( size_t n = posOfFirstDifference ; n < fullPathFolders.size() ; n++ )
+    {
+        relativePath += fullPathFolders[n] + "/";
+    }
+
+#ifdef DEBUG_BUILD
+    std::cout << "GetRelativePath(" << pCWD << "," << pFullPath << ") == " << relativePath << std::endl;
+#endif
+
+    return relativePath;
+}
+
+bool CompareFileTimes(const std::string& pSourceFile,const std::string& pDestFile)
+{
+    struct stat Stats;
+    if( stat(pDestFile.c_str(), &Stats) == 0 && S_ISREG(Stats.st_mode) )
+    {
+        timespec dstFileTime = Stats.st_mtim;
+
+        if( stat(pSourceFile.c_str(), &Stats) == 0 && S_ISREG(Stats.st_mode) )
+        {
+            timespec srcFileTime = Stats.st_mtim;
+
+            if(srcFileTime.tv_sec == dstFileTime.tv_sec)
+                return srcFileTime.tv_nsec > dstFileTime.tv_nsec;
+
+            return srcFileTime.tv_sec > dstFileTime.tv_sec;
+        }
+    }
+
+    return true;
+}
+
+};//namespace file{
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 };//namespace tinytools

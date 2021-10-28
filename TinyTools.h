@@ -1,5 +1,8 @@
 /*
-   Copyright (C) 2017, Richard e Collins.
+ * @file TinyTools.h
+ * @author Richard e Collins
+ * @version 0.1
+ * @date 2021-03-15
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,6 +25,8 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <set>
+#include <stack>
 #include <functional>
 #include <cmath>
 #include <cstring>
@@ -39,39 +44,61 @@
 
 namespace tinytools{	// Using a namespace to try to prevent name clashes as my class name is kind of obvious. :)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace math{
 
-namespace math
+inline float GetFractional(float pValue)
 {
-	inline float GetFractional(float pValue)
+	return std::fmod(pValue,1.0f);
+}
+
+inline float GetInteger(float pValue)
+{
+	return pValue - GetFractional(pValue);
+}
+
+/**
+ * @brief Rounds a floating point value into multiplies of 0.5
+ * -1.2 -> -1.0
+ * -1.0 -> -1.0
+ * -0.8 -> -1.0
+ * 2.3 -> 2.5
+ * 2.8 -> 3.0
+ */
+inline float RoundToPointFive(float pValue)
+{
+	const float integer = GetInteger(pValue);
+	const float frac = std::round(GetFractional(pValue)*2.0f) / 2.0f;
+	return integer + frac;
+}
+
+};//namespace math{
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Common string types, not in string namespace as the types already start with String.
+typedef std::vector<std::string> StringVec;
+typedef std::set<std::string> StringSet;
+typedef std::stack<std::string> StringStack;
+typedef std::map<std::string,StringVec> StringVecMap;
+typedef std::map<std::string,StringSet> StringSetMap;
+typedef std::map<std::string,int> StringIntMap;
+
+class StringMap : public std::map<std::string,std::string>
+{
+public:
+	inline void GetKeys(StringVec& rKeys)const
 	{
-		return std::fmod(pValue,1.0f);
+		for( const auto& key : *this )
+			rKeys.push_back(key.first);
 	}
 
-	inline float GetInteger(float pValue)
+	inline void GetValues(StringVec& rValues)const
 	{
-		return pValue - GetFractional(pValue);
-	}
-
-	/**
-	 * @brief Rounds a floating point value into multiplies of 0.5
-	 * -1.2 -> -1.0
-	 * -1.0 -> -1.0
-	 * -0.8 -> -1.0
-	 * 2.3 -> 2.5
-	 * 2.8 -> 3.0
-	 */
-	inline float RoundToPointFive(float pValue)
-	{
-		const float integer = GetInteger(pValue);
-		const float frac = std::round(GetFractional(pValue)*2.0f) / 2.0f;
-		return integer + frac;
+		for( const auto& value : *this )
+			rValues.push_back(value.second);
 	}
 };
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace string{
-
-std::vector<std::string> SplitString(const std::string& pString, const char* pSeperator);
 
 // If pNumChars == 0 then full length is used.
 // assert(cppmake::CompareNoCase("onetwo","one",3) == true);
@@ -100,6 +127,16 @@ inline bool CompareNoCase(const std::string& pA,const std::string& pB,size_t pLe
 	return CompareNoCase(pA.c_str(),pB.c_str(),pLength);
 }
 
+char* CopyString(const char* pString, size_t pMaxLength);
+inline char* CopyString(const std::string& pString){return CopyString(pString.c_str(),pString.size());}
+StringVec SplitString(const std::string& pString,const char* pSeperator);
+std::string ReplaceString(const std::string& pString,const std::string& pSearch,const std::string& pReplace);
+std::string TrimWhiteSpace(const std::string &s);
+
+inline bool Search(const StringVec& pVec,const std::string& pLost)
+{
+   return std::find(pVec.begin(),pVec.end(),pLost) != pVec.end();
+}
 
 };//namespace string{
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -256,6 +293,71 @@ bool GetCPULoad(std::map<int,CPULoadTracking>& pTrackingData,int& rTotalSystemLo
  */
 bool GetMemoryUsage(size_t& rMemoryUsedKB,size_t& rMemAvailableKB,size_t& rMemTotalKB,size_t& rSwapUsedKB);
 
+
+/**
+ * @brief Calls and waits for the command in pCommand with the arguments pArgs and addictions to environment variables in pEnv.
+ * Uses the function ExecuteCommand below but first forks the process so that current execution can continue.
+ * https://linux.die.net/man/3/execvp
+ * 
+ * Blocking. If you need a non blocking then just call in a worker thread of your own. This makes it cleaner and more flexable.
+ * 
+ * @param pCommand The pathed command to run.
+ * @param pArgs The arguments to be passed to the command.
+ * @param pEnv Extra environment variables, string pair (name,value), to append to the current processes environment variables, maybe empty if you wish. An example use is setting LD_LIBRARY_PATH
+ * @param rOutput The output from the executed command, if there was any.
+ * @return true if calling the command worked, says nothing of the command itself.
+ * @return false Something went wrong. Does not represent return value of command.
+ */
+extern bool ExecuteShellCommand(const std::string& pCommand,const std::vector<std::string>& pArgs,const std::map<std::string,std::string>& pEnv, std::string& rOutput);
+
+/**
+ * @brief Calls and waits for the command in pCommand with the arguments pArgs.
+ * Uses the function ExecuteCommand below but first forks the process so that current execution can continue.
+ * https://linux.die.net/man/3/execvp
+ * 
+ * Blocking. If you need a non blocking then just call in a worker thread of your own. This makes it cleaner and more flexable.
+ * 
+ * @param pCommand The pathed command to run.
+ * @param pArgs The arguments to be passed to the command.
+ * @param rOutput The output from the executed command, if there was any.
+ * @return true if calling the command worked, says nothing of the command itself.
+ * @return false Something went wrong. Does not represent return value of command.
+ */
+inline bool ExecuteShellCommand(const std::string& pCommand,const std::vector<std::string>& pArgs, std::string& rOutput)
+{
+    const std::map<std::string,std::string> empty;
+    return ExecuteShellCommand(pCommand,pArgs,empty,rOutput);
+}
+
+/**
+ * @brief Replaces the current process image with the command in pCommand with the arguments pArgs and addictions to environment variables in pEnv.
+ * Uses the execvp command.
+ * https://linux.die.net/man/3/execvp
+ * 
+ * Replaces the current process, so not returning from this function!
+ * 
+ * @param pCommand The pathed command to run.
+ * @param pArgs The arguments to be passed to the command.
+ * @param pEnv Extra environment variables, string pair (name,value), to append to the current processes environment variables, maybe empty if you wish. An example use is setting LD_LIBRARY_PATH
+ */
+extern void ExecuteCommand(const std::string& pCommand,const std::vector<std::string>& pArgs,const std::map<std::string,std::string>& pEnv);
+
+/**
+ * @brief Replaces the current process image with the command in pCommand with the arguments pArgs.
+ * Uses the execvp command.
+ * https://linux.die.net/man/3/execvp
+ * 
+ * Replaces the current process, so not returning from this function!
+ * 
+ * @param pCommand The pathed command to run.
+ * @param pArgs The arguments to be passed to the command.
+ */
+inline void ExecuteCommand(const std::string& pCommand,const std::vector<std::string>& pArgs)
+{
+    const std::map<std::string,std::string> empty;
+    ExecuteCommand(pCommand,pArgs,empty);
+}
+
 };//namespace system{
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace threading{
@@ -287,6 +389,7 @@ private:
 };
 
 };//namespace threading{
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 class CommandLineOptions
 {
@@ -323,6 +426,96 @@ private:
 	std::map<char,Argument> mArguments;
 	
 };
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace file{
+bool FileExists(const char* pFilename);	//Will return false if file name is a path! We want to know if the file exists!
+bool DirectoryExists(const char* pDirname);	//Will return false if name name is a file! We want to know if the dir exists!
+
+inline bool FileExists(const std::string& pFilename){return FileExists(pFilename.c_str());}
+inline bool DirectoryExists(const std::string& pDirname){return DirectoryExists(pDirname.c_str());}
+
+/**
+ * @brief Checks if the path passed is absolute.
+ * abstracted out like this in case it needs to be changed / ported.
+ * Just checks first char.
+ * 
+ * @param pPath 
+ * @return true 
+ * @return false 
+ */
+inline bool GetIsPathAbsolute(const std::string& pPath)
+{
+   return pPath.size() > 0 && pPath.at(0) == '/';
+}
+
+// Splits string into list have names to be made into directories, so don't include any filenames as they will be made into a folder.
+// Returns true if all was ok.
+bool MakeDir(const std::string& pPath);
+
+/**
+ * @brief Takes the pathed file name and creates any missing folders that it needs.
+ * 
+ * @param pPathedFilename Can either be absolute or relative to current working directory. 
+ * If folders already exist then nothing will change.
+ * @return true The folders were made ok.
+ * @return false There was an issue.
+ */
+bool MakeDirForFile(const std::string& pPathedFilename);
+
+std::string GetCurrentWorkingDirectory();
+std::string CleanPath(const std::string& pPath);
+
+std::string GetFileName(const std::string& pPathedFileName,bool RemoveExtension = false);
+std::string GetPath(const std::string& pPathedFileName);
+
+/**
+ * @brief Get the Extension of the passed filename,
+ * E.G. hello.text will return text
+ * 
+ * @param pFileName 
+ * @param pToLower 
+ * @return std::string The extension found or a zero length string. The extension returned does not include the dot.
+ */
+std::string GetExtension(const std::string& pFileName,bool pToLower = true);
+
+/**
+ * @brief Find the files in path that match the filter. Does not enter child folders.
+ * 
+ * @param pPath 
+ * @param pFilter 
+ * @return StringVec 
+ */
+StringVec FindFiles(const std::string& pPath,const std::string& pFilter = "*");
+
+/**
+ * @brief Get the Relative Path based on the passed absolute paths.
+ * In debug the following errors will result in an assertion.
+ * Examples
+ *     GetRelativePath("/home/richard/games/chess","/home/richard/games/chess/game1") == "./game1/"
+ *     GetRelativePath("/home/richard/games","/home/richard/music") == "../music/"
+ * @param pCWD The directory that you want the full path to be relative too. This path should also start with a / if it does not the function will just return the full path unchanged.
+ * @param pFullPath The full path, if it does not start with a / it will be assumed to be already relative and so just returned.
+ * @return std::string If either input string is empty './' will be returned.
+ */
+std::string GetRelativePath(const std::string& pCWD,const std::string& pFullPath);
+
+/**
+ * @brief Checks if the file for source is newer than of dest.
+ * Also will pretend that it is newer if any of the stats fail.
+ * This is a bespoke to my needs here, should not be exported to rest of the code.
+ * 
+ * @param pSourceFile 
+ * @param pDestFile 
+ * @return true 
+ * @return false 
+ */
+bool CompareFileTimes(const std::string& pSourceFile,const std::string& pDestFile);
+
+
+};// namespace file
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 };//namespace tinytools
