@@ -121,7 +121,13 @@ StringVec SplitString(const std::string& pString, const char* pSeperator)
 {
     StringVec res;
     for (size_t p = 0, q = 0; p != pString.npos; p = q)
-        res.push_back(pString.substr(p + (p != 0), (q = pString.find(pSeperator, p + 1)) - p - (p != 0)));
+	{
+		const std::string part(pString.substr(p + (p != 0), (q = pString.find(pSeperator, p + 1)) - p - (p != 0)));
+		if( part.size() > 0 )
+		{
+	        res.push_back(part);
+		}
+	}
     return res;
 }
 
