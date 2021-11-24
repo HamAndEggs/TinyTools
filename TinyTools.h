@@ -45,56 +45,6 @@
 
 namespace tinytools{	// Using a namespace to try to prevent name clashes as my class name is kind of obvious. :)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Some objects that don't fall neatly into a sub namespace.
-/**
- * @brief This is the ring buffer container.
- * As long as you can grantee that only one thread is writing and one thread is reading no locks are needed.
- * The reading and writing threads can be different.
- * The writing thread must not call RingBuffer_ReadNext.
- * The reading thread must not call RingBuffer_WriteNext.
- * Using volatile is to force the suppression of optimisations
- * that could otherwise occur on the counters that could break the lockless nature of the ring buffer.
- */
-class LocklessRingBuffer
-{
-public:
-    /**
-     * @brief Allocates a ring buffer object.
-     * 
-     * @param pItemSizeof The size of each item being but into the ring buffer.
-     * @param pItemCount The number of items in the ring buffer.
-     */
-    LocklessRingBuffer(size_t pItemSizeof,size_t pItemCount);
-
-    ~LocklessRingBuffer();
-
-    /**
-     * @brief Reads the next item that is in the ring buffer.
-     * 
-     * @param pRingBuffer The ring buffer to read from.
-     * @return uint8_t* The item read or NULL if there are not items to be read.
-     */
-    const void *RingBuffer_ReadNext();
-
-    /**
-     * @brief Writes an item to the ring buffer.
-     * 
-     * @param pRingBuffer The ring buffer to write too.
-     * @param pItem The item to write.
-     * @return true if there was room to write the item, false if the buffer is full and items can not be written.
-     */
-    bool RingBuffer_WriteNext(const void* pItem);
-
-private:
-    volatile int mCurrentReadPos;//!< The current item READ index in the buffer. That is mBuffer + (mCurrentReadPos * mItemSizeof)    
-    volatile int mNextWritePos;//!< The current item WRITE index in the buffer. That is mBuffer + (mNextWritePos * mItemSizeof)
-    
-    uint8_t *mBuffer;
-    size_t mItemSizeof;
-    size_t mItemCount;
-};
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace math{
 
 inline float GetFractional(float pValue)
@@ -438,6 +388,55 @@ private:
     std::condition_variable mSleeper;   //!< Used to sleep for how long asked for but also wake up if we need to exit.
     std::mutex mSleeperMutex;			//!< This is used to correctly use the condition variable.
 };
+
+/**
+ * @brief This is the ring buffer container.
+ * As long as you can grantee that only one thread is writing and one thread is reading no locks are needed.
+ * The reading and writing threads can be different.
+ * The writing thread must not call RingBuffer_ReadNext.
+ * The reading thread must not call RingBuffer_WriteNext.
+ * Using volatile is to force the suppression of optimisations
+ * that could otherwise occur on the counters that could break the lockless nature of the ring buffer.
+ */
+class LocklessRingBuffer
+{
+public:
+    /**
+     * @brief Allocates a ring buffer object.
+     * 
+     * @param pItemSizeof The size of each item being but into the ring buffer.
+     * @param pItemCount The number of items in the ring buffer.
+     */
+    LocklessRingBuffer(size_t pItemSizeof,size_t pItemCount);
+
+    ~LocklessRingBuffer();
+
+    /**
+     * @brief Reads the next item that is in the ring buffer.
+     * 
+     * @param pRingBuffer The ring buffer to read from.
+     * @return uint8_t* The item read or NULL if there are not items to be read.
+     */
+    const void *RingBuffer_ReadNext();
+
+    /**
+     * @brief Writes an item to the ring buffer.
+     * 
+     * @param pRingBuffer The ring buffer to write too.
+     * @param pItem The item to write.
+     * @return true if there was room to write the item, false if the buffer is full and items can not be written.
+     */
+    bool RingBuffer_WriteNext(const void* pItem);
+
+private:
+    volatile int mCurrentReadPos;//!< The current item READ index in the buffer. That is mBuffer + (mCurrentReadPos * mItemSizeof)    
+    volatile int mNextWritePos;//!< The current item WRITE index in the buffer. That is mBuffer + (mNextWritePos * mItemSizeof)
+    
+    uint8_t *mBuffer;
+    size_t mItemSizeof;
+    size_t mItemCount;
+};
+
 
 };//namespace threading{
 

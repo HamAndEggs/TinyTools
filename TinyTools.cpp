@@ -55,66 +55,6 @@
 
 namespace tinytools{	// Using a namespace to try to prevent name clashes as my class name is kind of obvious. :)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-LocklessRingBuffer::LocklessRingBuffer(size_t pItemSizeof,size_t pItemCount)
-{
-    mBuffer = new uint8_t[pItemSizeof * pItemCount];
-    mItemSizeof = pItemSizeof;
-    mItemCount = pItemCount;
-    mCurrentReadPos = 0;
-    mNextWritePos = 0;    
-}
-
-LocklessRingBuffer::~LocklessRingBuffer()
-{
-    delete []mBuffer;
-}
-
-const void *LocklessRingBuffer::RingBuffer_ReadNext()
-{
-    void *item = NULL;
-    volatile int NextPos = 0;
-
-    // If we have caught up with the write index then we're blocked and return NULL.
-    // Current read pos is allowed to become the same as the write pos.
-    if( mCurrentReadPos == mNextWritePos )
-        return NULL;
-
-    // Get the items address
-    item = mBuffer + (mCurrentReadPos * mItemSizeof);
-
-    // Advance to where we want to read from next time.
-    // Also we don't write new index till we have calculated it. Makes the write a single instruction and so atomic.
-    NextPos = (mCurrentReadPos+1)%mItemCount;
-
-    // Write with one instuction.
-    mCurrentReadPos = NextPos;
-    
-    return item;
-}
-
-bool LocklessRingBuffer::RingBuffer_WriteNext(const void* pItem)
-{
-    // Notice how the logic for testing for overwrite is a 'little' different to the one above.
-    // This is important. It deals with then there is no data in the buffer and we need to write.
-    // The write pos is NOT allowed to become the same as the read pos.
-    // Also we don't write result till we are done. Makes the write a single instruction and so atomic.
-    volatile int NextPos = (mNextWritePos+1)%mItemCount;
-
-    // If we have caught up with the read index then we're blocked, return false. Data not written
-    if( NextPos == mCurrentReadPos )
-        return false;
-
-    memcpy(mBuffer + (mNextWritePos * mItemSizeof),
-            pItem,
-            mItemSizeof);
-
-    // Move to the place we'll next write too.
-    mNextWritePos = NextPos;
-
-    return true;// Written ok.
-}
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 namespace math
 {
 };
@@ -924,6 +864,65 @@ void SleepableThread::TellThreadToExitAndWait()
 	{
 		mWorkerThread.join();
 	}
+}
+
+LocklessRingBuffer::LocklessRingBuffer(size_t pItemSizeof,size_t pItemCount)
+{
+    mBuffer = new uint8_t[pItemSizeof * pItemCount];
+    mItemSizeof = pItemSizeof;
+    mItemCount = pItemCount;
+    mCurrentReadPos = 0;
+    mNextWritePos = 0;    
+}
+
+LocklessRingBuffer::~LocklessRingBuffer()
+{
+    delete []mBuffer;
+}
+
+const void *LocklessRingBuffer::RingBuffer_ReadNext()
+{
+    void *item = NULL;
+    volatile int NextPos = 0;
+
+    // If we have caught up with the write index then we're blocked and return NULL.
+    // Current read pos is allowed to become the same as the write pos.
+    if( mCurrentReadPos == mNextWritePos )
+        return NULL;
+
+    // Get the items address
+    item = mBuffer + (mCurrentReadPos * mItemSizeof);
+
+    // Advance to where we want to read from next time.
+    // Also we don't write new index till we have calculated it. Makes the write a single instruction and so atomic.
+    NextPos = (mCurrentReadPos+1)%mItemCount;
+
+    // Write with one instuction.
+    mCurrentReadPos = NextPos;
+    
+    return item;
+}
+
+bool LocklessRingBuffer::RingBuffer_WriteNext(const void* pItem)
+{
+    // Notice how the logic for testing for overwrite is a 'little' different to the one above.
+    // This is important. It deals with then there is no data in the buffer and we need to write.
+    // The write pos is NOT allowed to become the same as the read pos.
+    // Also we don't write result till we are done. Makes the write a single instruction and so atomic.
+    volatile int NextPos = (mNextWritePos+1)%mItemCount;
+
+    // If we have caught up with the read index then we're blocked, return false. Data not written
+    if( NextPos == mCurrentReadPos )
+        return false;
+
+    memcpy(mBuffer + (mNextWritePos * mItemSizeof),
+            pItem,
+            mItemSizeof);
+
+    // Move to the place we'll next write too.
+    mNextWritePos = NextPos;
+
+    return true;// Written ok.
 }
 
 };//namespace threading{
