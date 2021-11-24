@@ -393,40 +393,42 @@ private:
  * @brief This is the ring buffer container.
  * As long as you can grantee that only one thread is writing and one thread is reading no locks are needed.
  * The reading and writing threads can be different.
- * The writing thread must not call RingBuffer_ReadNext.
- * The reading thread must not call RingBuffer_WriteNext.
+ * The writing thread must not call ReadNext.
+ * The reading thread must not call WriteNext.
  * Using volatile is to force the suppression of optimisations
- * that could otherwise occur on the counters that could break the lockless nature of the ring buffer.
+ * that could otherwise occur on the counters that could break the lockless nature of the buffer.
  */
 class LocklessRingBuffer
 {
 public:
     /**
-     * @brief Allocates a ring buffer object.
+     * @brief Allocates a buffer object.
      * 
-     * @param pItemSizeof The size of each item being but into the ring buffer.
-     * @param pItemCount The number of items in the ring buffer.
+     * @param pItemSizeof The size of each item being but into the buffer.
+     * @param pItemCount The number of items in the buffer.
      */
     LocklessRingBuffer(size_t pItemSizeof,size_t pItemCount);
 
     ~LocklessRingBuffer();
 
-    /**
-     * @brief Reads the next item that is in the ring buffer.
-     * 
-     * @param pRingBuffer The ring buffer to read from.
-     * @return uint8_t* The item read or NULL if there are not items to be read.
-     */
-    const void *RingBuffer_ReadNext();
+	/**
+     * @brief Reads the next item that is in the buffer.
+	 * 
+	 * @param rItem The memory store to write the data too.
+	 * @param pBufferSize The size of the buffer we're writing too.
+	 * @return true If data was read.
+	 * @return false If the buffer is empty.
+	 */
+    bool ReadNext(void* rItem,size_t pBufferSize);
 
     /**
-     * @brief Writes an item to the ring buffer.
+     * @brief Writes an item to the buffer.
      * 
-     * @param pRingBuffer The ring buffer to write too.
      * @param pItem The item to write.
+	 * @param pBufferSize The size of the buffer we're reading.
      * @return true if there was room to write the item, false if the buffer is full and items can not be written.
      */
-    bool RingBuffer_WriteNext(const void* pItem);
+    bool WriteNext(const void* pItem,size_t pBufferSize);
 
 private:
     volatile int mCurrentReadPos;//!< The current item READ index in the buffer. That is mBuffer + (mCurrentReadPos * mItemSizeof)    

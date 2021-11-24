@@ -880,7 +880,7 @@ LocklessRingBuffer::~LocklessRingBuffer()
     delete []mBuffer;
 }
 
-const void *LocklessRingBuffer::RingBuffer_ReadNext()
+bool LocklessRingBuffer::ReadNext(void* rItem,size_t pBufferSize)
 {
     void *item = NULL;
     volatile int NextPos = 0;
@@ -888,10 +888,14 @@ const void *LocklessRingBuffer::RingBuffer_ReadNext()
     // If we have caught up with the write index then we're blocked and return NULL.
     // Current read pos is allowed to become the same as the write pos.
     if( mCurrentReadPos == mNextWritePos )
-        return NULL;
+        return false;
 
     // Get the items address
     item = mBuffer + (mCurrentReadPos * mItemSizeof);
+
+    // Copy before advancing the read buffer so it can't get over written.
+    const size_t numBytesToCopy = pBufferSize < mItemSizeof ? pBufferSize : mItemSizeof;
+    memcpy(rItem,item,numBytesToCopy);
 
     // Advance to where we want to read from next time.
     // Also we don't write new index till we have calculated it. Makes the write a single instruction and so atomic.
@@ -900,10 +904,10 @@ const void *LocklessRingBuffer::RingBuffer_ReadNext()
     // Write with one instuction.
     mCurrentReadPos = NextPos;
     
-    return item;
+    return true;
 }
 
-bool LocklessRingBuffer::RingBuffer_WriteNext(const void* pItem)
+bool LocklessRingBuffer::WriteNext(const void* pItem,size_t pBufferSize)
 {
     // Notice how the logic for testing for overwrite is a 'little' different to the one above.
     // This is important. It deals with then there is no data in the buffer and we need to write.
@@ -915,9 +919,10 @@ bool LocklessRingBuffer::RingBuffer_WriteNext(const void* pItem)
     if( NextPos == mCurrentReadPos )
         return false;
 
+    const size_t numBytesToCopy = pBufferSize < mItemSizeof ? pBufferSize : mItemSizeof;
     memcpy(mBuffer + (mNextWritePos * mItemSizeof),
             pItem,
-            mItemSizeof);
+            numBytesToCopy);
 
     // Move to the place we'll next write too.
     mNextWritePos = NextPos;
