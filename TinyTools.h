@@ -412,6 +412,14 @@ public:
     ~LocklessRingBuffer();
 
 	/**
+	 * @brief Will state if there is data to be read or not.
+	 * 
+	 * @return true No data to be read.
+	 * @return false There is data to read.
+	 */
+	bool Empty()const{return mCurrentReadPos == mNextWritePos;}
+	
+	/**
      * @brief Reads the next item that is in the buffer.
 	 * 
 	 * @param rItem The memory store to write the data too.
