@@ -1366,6 +1366,22 @@ bool CompareFileTimes(const std::string& pSourceFile,const std::string& pDestFil
     return true;
 }
 
+std::string LoadFileIntoString(const std::string& pFilename)
+{
+    std::ifstream jsonFile(pFilename);
+    if( jsonFile.is_open() )
+    {
+        std::stringstream jsonStream;
+        jsonStream << jsonFile.rdbuf();// Read the whole file in...
+
+        return jsonStream.str();
+    }
+
+    std::throw_with_nested(std::runtime_error("Jons file not found " + pFilename));
+
+    return "";
+}
+
 };//namespace file{
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
