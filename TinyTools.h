@@ -36,6 +36,8 @@
 #include <chrono>
 #include <thread>
 #include <condition_variable>
+#include <ctime>
+#include <iomanip>
 
 /**
  * @brief Adds line and source file. There is a c++20 way now that is better. I need to look at that.
@@ -287,6 +289,13 @@ inline int64_t SecondsSinceEpoch()
 {
 	return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
+
+/**
+ * @brief Get the local date time as string
+ * 
+ * @return std::string 
+ */
+std::string GetLocalDateTime();
 
 /**
  * @brief Fetches the system uptime in a more human readable format

@@ -392,6 +392,14 @@ bool IsPortOpen(uint32_t pIPv4,uint16_t pPort)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace system{
 
+std::string GetLocalDateTime()
+{
+	auto t = std::time(nullptr);
+	char mbstr[100];
+	std::strftime(mbstr,sizeof(mbstr), "%d-%m-%Y %H-%M-%S",std::localtime(&t));
+    return mbstr;
+}
+
 /**
  * @brief Fetches the system uptime in a more human readable format
  */
