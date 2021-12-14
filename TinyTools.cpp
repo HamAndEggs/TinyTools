@@ -393,12 +393,11 @@ size_t Encode7Bit(const uint8_t* p8Bit,size_t p8BitSize,uint8_t** r7Bit)
     assert(newSize > 1);
 
     uint8_t* out = new uint8_t[newSize];
-    const uint8_t* end = out + newSize;
     *r7Bit = out;
 
     for( ; p8BitSize > 6 ; p8BitSize -=7 , out += 8, p8Bit += 7 )
     {
-        assert( out + 8 < end );
+        assert( out + 7 < (*r7Bit) + newSize );
         out[0] = (                        (p8Bit[0]>>1) );
         out[1] = ( ((p8Bit[0]&0x01)<<6) | (p8Bit[1]>>2) );
         out[2] = ( ((p8Bit[1]&0x03)<<5) | (p8Bit[2]>>3) );
@@ -414,7 +413,7 @@ size_t Encode7Bit(const uint8_t* p8Bit,size_t p8BitSize,uint8_t** r7Bit)
     if( p8BitSize > 0 )
     {
         uint8_t padding[6] = {0,0,0,0,0,0};
-        for( int n = 0 ; n < p8BitSize ; n++ )
+        for( size_t n = 0 ; n < p8BitSize ; n++ )
         {
             padding[n] = p8Bit[n];
         }
@@ -442,7 +441,7 @@ size_t Encode7Bit(const uint8_t* p8Bit,size_t p8BitSize,uint8_t** r7Bit)
             }
         }
     }
-    assert( out <= end );
+    assert( out <= (*r7Bit) + newSize );
 
     return out - *r7Bit;
 }
@@ -453,11 +452,11 @@ size_t Decode7Bit(const uint8_t* p7Bit,size_t p7BitSize,uint8_t** r8Bit)
     assert(newSize > 1);
 
     uint8_t* out = new uint8_t[newSize];
-    const uint8_t* end = out + newSize;
     *r8Bit = out;
 
     for( ; p7BitSize > 7 ; p7BitSize -= 8, p7Bit += 8, out += 7 )
     {
+        assert( out + 6 < (*r8Bit) + newSize );
         out[0] = ( p7Bit[0] << 1 | (p7Bit[1]>>6));
         out[1] = ( p7Bit[1] << 2 | (p7Bit[2]>>5));
         out[2] = ( p7Bit[2] << 3 | (p7Bit[3]>>4));
@@ -466,15 +465,6 @@ size_t Decode7Bit(const uint8_t* p7Bit,size_t p7BitSize,uint8_t** r8Bit)
         out[5] = ( p7Bit[5] << 6 | (p7Bit[6]>>1));
         out[6] = ( p7Bit[6] << 7 | (p7Bit[7]>>0));
     }
-
-    auto writeByte = [&out,end](uint8_t pValue)
-    {
-        if( out < end )
-        {
-            *out = pValue;
-            out++;
-        }
-    };
 
     if( p7BitSize > 0 )
     {
@@ -504,7 +494,7 @@ size_t Decode7Bit(const uint8_t* p7Bit,size_t p7BitSize,uint8_t** r8Bit)
             }
         }
     }
-    assert( out <= end );
+    assert( out <= (*r8Bit) + newSize );
 
     return out - *r8Bit;
 }

@@ -58,13 +58,13 @@ int main(int argc, char *argv[])
 
     std::thread otherThread = std::thread([]()
     {
-        for( int z = 1 ; z < 100000 ; z++ )
+        for( int z = 1 ; z < 10000 ; z++ )
         {
             TestBitPacking(z);
         }
     });
 
-    for( int z = 1 ; z < 100000 ; z++ )
+    for( int z = 1 ; z < 10000 ; z++ )
     {
         TestBitPacking(z);
     }
