@@ -160,6 +160,19 @@ std::string TrimWhiteSpace(const std::string &s)
 
 };//namespace string{
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace time{
+
+const std::string UnixTimeToString(uint64_t unixTime,const std::string& pFormat)
+{
+    const std::time_t t = (std::time_t)unixTime;
+    const std::tm tm = *std::localtime(&t);
+    std::stringstream s;
+    s << std::put_time(&tm, pFormat.c_str());
+    return s.str();
+}
+
+};//namespace timer{
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace timers{
 MillisecondTicker::MillisecondTicker(int pMilliseconds)
 {
@@ -965,6 +978,7 @@ void SleepableThread::Tick(int pPauseInterval,std::function<void()> pTheWork)
 		TINYTOOLS_THROW("SleepableThread passed nullpoint for the work to do...");
 	}
 
+        mKeepGoing = true;
 	mWorkerThread = std::thread([this,pPauseInterval,pTheWork]()
 	{
 		while(mKeepGoing)
