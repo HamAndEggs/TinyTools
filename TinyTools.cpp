@@ -134,7 +134,7 @@ std::string ReplaceString(const std::string& pString,const std::string& pSearch,
 {
     std::string Result = pString;
     // Make sure we can't get stuck in an infinite loop if replace includes the search string or both are the same.
-    if( pSearch != pReplace && pSearch.find(pReplace) != pSearch.npos )
+    if( pSearch != pReplace && pSearch.find(pReplace) == pSearch.npos )
     {
         for( std::size_t found = Result.find(pSearch) ; found != Result.npos ; found = Result.find(pSearch) )
         {
